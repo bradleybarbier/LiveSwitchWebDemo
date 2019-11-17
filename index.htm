@@ -23,36 +23,6 @@ TODO: Enable dataChannels
 <script type="text/javascript" src="fm.liveswitch.js"></script>
 
 <script>
-        function getMediaDevicesX(){
-            var promise = new fm.liveswitch.Promise();
-            navigator.mediaDevices.enumerateDevices().then(devices => {
-                //log("Enumerating input devices...");
-
-                for (var i = 0; i < devices.length; i++){
-                    if (devices[i].kind === "audioinput" || devices[i].kind =="videoinput"){
-                        var type = devices[i].kind === "audioinput" ? "AUDIO" : "VIDEO";
-
-                        //if (devices[i].deviceId.length === 64)
-                        { //could be a better way to determine this
-                            var opt = document.createElement('option');
-                            opt.value = devices[i].deviceId;
-                            opt.innerHTML = devices[i].label;
-                            //type === "AUDIO" ? audioInputsList.appendChild(opt) : videoInputsList.appendChild(opt);
-
-                            console.log("Type: " + type + "Id: " + devices[i].deviceId + ", Label: " +  devices[i].label);
-                        }                        
-
-                        //log(type + " : " + devices[i].label);
-                        //console.log(type);
-                    }
-                }
-
-                promise.resolve(devices)
-            });            
-
-            return promise;
-        }  
-
     fm.liveswitch.Util.addOnLoad(function () {
         var randomName = function(length) {
             var result = '';
@@ -926,8 +896,12 @@ TODO: Enable dataChannels
                     }
 
                     delete sfuDownstreamConnections[connection.getId()];
+                    removeRemoveViewContainer(downstreamSfuConnection1.getId());
                     downstreamSfuConnection1 = null;
                     remoteMedia1 = null;
+
+                    
+
                     enableControls();
                 }
                 else if (connection.getState() == fm.liveswitch.ConnectionState.Failed) {
@@ -940,7 +914,7 @@ TODO: Enable dataChannels
                     remoteMedia1 = remoteMedia;
                     var remoteUserAlias = remoteConnectionInfo.getUserAlias();
                     //Dynamically add a view
-                    var remoteMediaContainerId = addRemoteView(downstreamSfuConnection1.getId(), remoteUserAlias);
+                    var remoteMediaContainerId = addRemoteViewContainer(downstreamSfuConnection1.getId(), remoteUserAlias);
                     var remoteMediaContainer = document.getElementById(remoteMediaContainerId);
 
                     var rm = remoteMedia;
@@ -1014,7 +988,7 @@ TODO: Enable dataChannels
             debugConsoleMessages.scrollTop = debugConsoleMessages.scrollHeight;
         }, 500)
 
-        var addRemoteView = function(remoteMediaId, remoteUserAlias){
+        var addRemoteViewContainer = function(remoteMediaId, remoteUserAlias){
             var nextRemoteID = Object.keys(sfuDownstreamConnections).length;
             //console.log(next);
 
@@ -1039,7 +1013,18 @@ TODO: Enable dataChannels
             }
 
             return remoteViewVideoContainerId;
-    }        
+        }
+
+        var removeRemoveViewContainer = function(remoteMediaId){
+            var remoteViewContainer = document.getElementById(remoteMediaId)
+
+            if (remoteViewContainer){
+                var parent = document.getElementById("left");
+                if (left){
+                    parent.removeChild(remoteViewContainer);
+            }                
+            }
+        }
 
     }); //onload
 
