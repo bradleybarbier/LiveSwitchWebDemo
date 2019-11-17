@@ -156,15 +156,23 @@ TODO: Enable dataChannels
         fm.liveswitch.Util.observe(muteLocalAudioButton, 'click', function (evt) {
             evt.preventDefault();
 
-            nativeAudioStream.getAudioTracks()[0].enabled = !nativeAudioStream.getAudioTracks()[0].enabled;
-            muteLocalAudioButton.innerHTML = nativeAudioStream.getAudioTracks()[0].enabled ? "Mute Local Audio" : "Unmute Local Audio";
+            //nativeAudioStream.getAudioTracks()[0].enabled = !nativeAudioStream.getAudioTracks()[0].enabled;
+            //muteLocalAudioButton.innerHTML = nativeAudioStream.getAudioTracks()[0].enabled ? "Mute Local Audio" : "Unmute Local Audio";
+
+            var currentLocalAudioMuteStatus = localMedia.getAudioMuted();
+            localMedia.setAudioMuted(!currentLocalAudioMuteStatus);
+            muteLocalAudioButton.innerHTML = currentLocalAudioMuteStatus === true ? "Mute Local Audio" : "Unmute Local Audio";            
         });          
 
         fm.liveswitch.Util.observe(muteLocalVideoButton, 'click', function (evt) {
             evt.preventDefault();
 
-            nativeVideoStream.getVideoTracks()[0].enabled = !nativeVideoStream.getVideoTracks()[0].enabled;
-            muteLocalVideoButton.innerHTML = nativeVideoStream.getVideoTracks()[0].enabled ? "Mute Local Video" : "Unmute Local Video";
+            //nativeVideoStream.getVideoTracks()[0].enabled = !nativeVideoStream.getVideoTracks()[0].enabled;
+            // muteLocalVideoButton.innerHTML = nativeVideoStream.getVideoTracks()[0].enabled ? "Mute Local Video" : "Unmute Local Video";
+
+            var currentLocalVideoMuteStatus = localMedia.getVideoMuted();
+            localMedia.setVideoMuted(!currentLocalVideoMuteStatus);
+            muteLocalVideoButton.innerHTML = currentLocalVideoMuteStatus === true ? "Mute Local Video" : "Unmute Local Video";
         });   
 
 
