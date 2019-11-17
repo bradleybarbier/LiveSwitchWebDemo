@@ -50,6 +50,7 @@ TODO: Enable dataChannels
         var unRegistering = false;
         var client;
         var sfuDownstreamConnections = {};
+        var remoteMedias = {};
 
         var startLocalMediaNativeButton = document.getElementById("startLocalMediaNative");
         var startLocalMediaFmButton = document.getElementById("startLocalMediaFm");
@@ -74,10 +75,10 @@ TODO: Enable dataChannels
         var setUpstreamBitrate1024Button = document.getElementById("setUpstreamBitrate1024");
         var currentUpStreamBitRate = 1024;
         var upStreamSfuConnection = null;
-        var downstreamSfuConnection1 = null;
-        var remoteMedia1 = null;
-        var remoteAudio1Muted = false;
-        var remoteVideo1Muted = false;
+        //var downstreamSfuConnection1 = null;
+        //var remoteMedia1 = null;
+        //var remoteAudio1Muted = false;
+        //var remoteVideo1Muted = false;
 
         fm.liveswitch.Log.registerProvider(new fm.liveswitch.ConsoleLogProvider(fm.liveswitch.LogLevel.Debug));
         fm.liveswitch.Log.registerProvider(new fm.liveswitch.DomLogProvider(debugConsoleMessages, fm.liveswitch.LogLevel.Debug));
@@ -904,9 +905,10 @@ TODO: Enable dataChannels
                     }
 
                     delete sfuDownstreamConnections[connection.getId()];
-                    removeRemoveViewContainer(downstreamSfuConnection1.getId());
-                    downstreamSfuConnection1 = null;
-                    remoteMedia1 = null;
+                    removeRemoveViewContainer(connection.getId());
+                    //downstreamSfuConnection1 = null;
+                    //remoteMedia1 = null;
+                    delete remoteMedias[connection.getId()];
 
                     
 
@@ -918,11 +920,14 @@ TODO: Enable dataChannels
                     //logConnectionState(connection, "SFU Downstream");
                 }
                 else if (connection.getState() == fm.liveswitch.ConnectionState.Connected) {
-                    downstreamSfuConnection1 = connection;
-                    remoteMedia1 = remoteMedia;
+                    //downstreamSfuConnection1 = connection;
+                    //remoteMedia1 = remoteMedia;
+
+                    remoteMedias[connection.getId()] = remoteMedia;
+
                     var remoteUserAlias = remoteConnectionInfo.getUserAlias();
                     //Dynamically add a view
-                    var remoteMediaContainerId = addRemoteViewContainer(downstreamSfuConnection1.getId(), remoteUserAlias);
+                    var remoteMediaContainerId = addRemoteViewContainer(connection.getId(), remoteUserAlias);
                     var remoteMediaContainer = document.getElementById(remoteMediaContainerId);
 
                     var rm = remoteMedia;
@@ -996,35 +1001,63 @@ TODO: Enable dataChannels
             debugConsoleMessages.scrollTop = debugConsoleMessages.scrollHeight;
         }, 500)
 
-        var addRemoteViewContainer = function(remoteMediaId, remoteUserAlias){
+        var addRemoteViewContainer = function(connectionId, remoteUserAlias){
             var nextRemoteID = Object.keys(sfuDownstreamConnections).length;
             //console.log(next);
 
             var remoteView = document.createElement('div');
-            remoteView.id = remoteMediaId; //"remoteVideo1";
+            remoteView.id = connectionId; //"remoteVideo1";
             remoteView.className = 'box';
 
-            var remoteViewVideoContainerId = "remoteVideo-"+remoteMediaId;
+            var remoteViewVideoContainerId = "remoteVideo-"+connectionId;
+            var muteRemoteAudioButtonId = "muteRemoteAudio-"+connectionId;
+            var muteRemoteVideoButtonId = "muteRemoteVideo-"+connectionId;
 
 
             remoteView.innerHTML = //"<div class=\"box\">"+
                     "<div class=\"header\">Remote Video: ("+remoteUserAlias+")</div>"+
                     "<div id=\""+remoteViewVideoContainerId+"\" class=\"remoteVideoContainer\"></div>"+
-                    "<button id=\"muteRemoteAudio1\" class=\"buttonVideo\" disabled>Mute Remote Audio</button>"+
-                    "<button id=\"muteRemoteVideo1\" class=\"buttonVideo\" disabled>Mute Remote Video</button>"+
+                    "<button id=\""+muteRemoteAudioButtonId+"\" class=\"buttonVideo\">Mute Remote Audio</button>"+
+                    "<button id=\""+muteRemoteVideoButtonId+"\" class=\"buttonVideo\">Mute Remote Video</button>"+
                     "<button id=\"monitorDownstreamStats1\" class=\"buttonVideo\" disabled>Start Downstream Stats Monitor</button>";
                 //"</div>";
                 
             var parent = document.getElementById("left");
             if (left){
                 parent.appendChild(remoteView);
+
+                //add event listeners for buttons
+                document.getElementById(muteRemoteAudioButtonId).addEventListener("click", function(){
+                    //console.log("Clicking mute remote Audio");
+                    var remoteConnection = remoteMedias[connectionId];
+                    var currentRemoteAudioMuted = remoteConnection.getAudioMuted();
+                    currentRemoteAudioMuted = !currentRemoteAudioMuted;
+                    remoteConnection.setAudioMuted(currentRemoteAudioMuted);
+
+                    this.innerHTML = currentRemoteAudioMuted === false ? "Mute Remote Audio" : "Unmute Remote Audio";                    
+                });
+
+                document.getElementById(muteRemoteVideoButtonId).addEventListener("click", function(){
+                    //console.log("Clicking mute remote Audio");
+                    var remoteConnection = remoteMedias[connectionId];
+                    var currentRemoteVideoMuted = remoteConnection.getVideoMuted();
+                    currentRemoteVideoMuted = !currentRemoteVideoMuted;
+                    remoteConnection.setVideoMuted(currentRemoteVideoMuted);
+
+                    this.innerHTML = currentRemoteVideoMuted === false ? "Mute Remote Video" : "Unmute Remote Video";
+
+        //     remoteVideo1Muted = !(remoteVideo1Muted);
+        //     remoteMedia1.setVideoMuted(remoteVideo1Muted);
+        //     muteRemoteVideoButton1.innerHTML = remoteVideo1Muted===false ? "Mute Remote Video" : "Unmute Remote Video";
+
+                });                
             }
 
             return remoteViewVideoContainerId;
         }
 
-        var removeRemoveViewContainer = function(remoteMediaId){
-            var remoteViewContainer = document.getElementById(remoteMediaId)
+        var removeRemoveViewContainer = function(connectionId){
+            var remoteViewContainer = document.getElementById(connectionId)
 
             if (remoteViewContainer){
                 var parent = document.getElementById("left");
