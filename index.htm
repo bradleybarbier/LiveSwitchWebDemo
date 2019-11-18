@@ -55,7 +55,9 @@ TODO: Enable dataChannels
         var startLocalMediaNativeButton = document.getElementById("startLocalMediaNative");
         var startLocalMediaFmButton = document.getElementById("startLocalMediaFm");
         var stopLocalMediaButton = document.getElementById("stopLocalMedia");        
-        var joinSfuButton = document.getElementById("joinConference");
+        var registerBtn = document.getElementById("registerBtn");
+        var openSfuUpstreamConnectionBtn = document.getElementById("openSfuUpstreamConnection");
+        var closeSfuUpstreamConnectionBtn = document.getElementById("closeSfuUpstreamConnection");
         var muteLocalAudioButton = document.getElementById("muteLocalAudio");
         var muteLocalVideoButton = document.getElementById("muteLocalVideo");
         var muteRemoteAudioButton1 = document.getElementById("muteRemoteAudio1");
@@ -89,6 +91,8 @@ TODO: Enable dataChannels
         var localMedia = null;
         var localMediaStarting = false;
         var localMediaStopping = false;
+        var registering = false;
+        var registered = false;        
         var joiningConference = false;
         var leavingConference = false;
 
@@ -97,13 +101,21 @@ TODO: Enable dataChannels
         var upstreamStatsTimer;
         var upstreamStatsTimerPaused = true;
         var downstreamStatsTimer1;
-        var downstreamStatsTimer1Paused = true;        
+        var downstreamStatsTimer1Paused = true;    
+        
+        var statusClientConnected = document.getElementById("statusClientConnected");
+        var statusLocalMediaRunning = document.getElementById("statusLocalMediaRunning");
+        var statusP2pUpstreamConnections = document.getElementById("statusP2pUpstreamConnections");
+        var statusSfuUpstreamConnections = document.getElementById("statusSfuUpstreamConnections");
+        var statusP2pDownstreamConnections = document.getElementById("statusP2pDownstreamConnections");
+        var statusSfuDownstreamConnections = document.getElementById("statusSfuDownstreamConnections");
+
 
         fm.liveswitch.Util.observe(startLocalMediaNativeButton, 'click', function (evt) {
             evt.preventDefault();
 
             startLocalMedia(true).then(localMedia => {
-                startLocalMediaNativeButton.innerHTML = "Start Local Media (Native)";
+                startLocalMediaNativeButton.innerHTML = "Start (Native)";
                 localMediaStarting = false;
                 localMediaRunning = true;
 
@@ -120,7 +132,7 @@ TODO: Enable dataChannels
             evt.preventDefault();
 
             startLocalMedia(false).then(localMedia => {
-                startLocalMediaFmButton.innerHTML = "Start Local Media (FM)";
+                startLocalMediaFmButton.innerHTML = "Start";
                 localMediaStarting = false;
                 localMediaRunning = true;
 
@@ -138,21 +150,40 @@ TODO: Enable dataChannels
             stopLocalMedia().then(() => {
                 localMediaStopping = false;
                 localMediaRunning = false;
-                stopLocalMediaButton.innerHTML = "Stop Local Media";
+                stopLocalMediaButton.innerHTML = "Stop";
                 enableControls();
                 log("Local Media Stopped");
             });
         }); 
 
-        fm.liveswitch.Util.observe(joinSfuButton, 'click', function (evt) {
+        fm.liveswitch.Util.observe(registerBtn, 'click', function (evt) {
             evt.preventDefault();
 
-            joinConference().then(() => {
-                joiningConference = false;
-                joinSfuButton.innerHTML = "Join";
-                log("Joined conference in SFU Mode");
+            registering = true;
+            register().then(() => {
+                registering = false;
+                registered = true;
+                registerBtn.innerHTML = "Registered";
+                leaveConferenceButton.innerHTML = "Unregister";
+                log("Client registered");
+                enableControls();
             });
-        });  
+        });        
+
+        fm.liveswitch.Util.observe(openSfuUpstreamConnectionBtn, 'click', function (evt) {
+            evt.preventDefault();
+
+            openSfuUpstreamConnection();
+        }); 
+
+        fm.liveswitch.Util.observe(closeSfuUpstreamConnectionBtn, 'click', function (evt) {
+            evt.preventDefault();
+
+            closeSfuUpstreamConnection().then(() => {
+                upStreamSfuConnection == null;
+                enableControls();
+            });
+        });        
 
         fm.liveswitch.Util.observe(muteLocalAudioButton, 'click', function (evt) {
             evt.preventDefault();
@@ -223,10 +254,11 @@ TODO: Enable dataChannels
         fm.liveswitch.Util.observe(leaveConferenceButton, 'click', function (evt) {
             evt.preventDefault();
 
+            leavingConference = true;
             leaveConference().then(() => {
                 leavingConference = false;
-                joinedConference = false;
-                leaveConferenceButton.innerHTML = "Leave";
+                registered = false;
+                registerBtn.innerHTML = "Register Client";
                 enableControls();
                 log("Left Conference");
             });
@@ -267,7 +299,7 @@ TODO: Enable dataChannels
                 stopLocalMedia().then(() => {
                     localMediaStopping = false;
                     localMediaRunning = false;
-                    stopLocalMediaButton.innerHTML = "Stop Local Media";
+                    stopLocalMediaButton.innerHTML = "Stop";
                     enableControls();
 
                     localMediaStarting = true;
@@ -275,7 +307,7 @@ TODO: Enable dataChannels
                         localMediaStarting = false;
                         localMediaRunning = true;
                         videoInputsList.disabled = false;
-                        startLocalMediaNativeButton.innerHTML = "Start Local Media (Native)";
+                        startLocalMediaNativeButton.innerHTML = "Start (Native)";
                         enableControls();
                         
                         if (upStreamSfuConnection !== null){
@@ -301,12 +333,37 @@ TODO: Enable dataChannels
             startLocalMediaFmButton.disabled = !((localMediaStarting === false) && (localMediaRunning === false)); //true;
             stopLocalMediaButton.disabled = !((localMediaStopping === false) && (localMediaRunning === true));
 
-            joinSfuButton.disabled = !((localMediaRunning === true) && ((joiningConference === false) && (joinedConference === false)));
-            leaveConferenceButton.disabled = !((leavingConference === false) && (joinedConference === true));
-            muteLocalAudioButton.disabled = leaveConferenceButton.disabled;
-            muteLocalVideoButton.disabled = leaveConferenceButton.disabled;
+            registerBtn.disabled = registering === true || registered === true;
 
-            upStreamStatsMonitorButton.disabled = leaveConferenceButton.disabled;
+            //openSfuUpstreamConnectionBtn.disabled = !((localMediaRunning === true) && ((joiningConference === false) && (joinedConference === false)));
+            // leaveConferenceButton.disabled = !((leavingConference === false) && (joinedConference === true));
+
+            if (registered === true){
+                if (upStreamSfuConnection == null)
+                {
+                    openSfuUpstreamConnectionBtn.disabled = false;
+                    closeSfuUpstreamConnectionBtn.disabled = true;
+                }
+                else
+                {
+                    openSfuUpstreamConnectionBtn.disabled = true;
+                    closeSfuUpstreamConnectionBtn.disabled = false;
+                }
+            }
+            else
+            {
+                openSfuUpstreamConnectionBtn.disabled = true;
+                closeSfuUpstreamConnectionBtn.disabled = true;
+            }
+            //openSfuUpstreamConnectionBtn.disabled = !(registered === true) && (upStreamSfuConnection !== null);
+            //closeSfuUpstreamConnectionBtn.disabled = !openSfuUpstreamConnectionBtn.disabled;
+
+            leaveConferenceButton.disabled = !(registered === true);
+            
+            //muteLocalAudioButton.disabled = leaveConferenceButton.disabled;
+            //muteLocalVideoButton.disabled = leaveConferenceButton.disabled;
+
+            //upStreamStatsMonitorButton.disabled = leaveConferenceButton.disabled;
             upStreamStatsMonitorButton.innerHTML = upstreamStatsTimerPaused === true ? "Start Upstream Stats Monitor" : "Stop Upstream Stats Monitor"
 
             var anySfuDownStreamsAvailable = (Object.keys(sfuDownstreamConnections).length > 0);
@@ -323,6 +380,27 @@ TODO: Enable dataChannels
             setUpstreamBitrate128Button.disabled = leaveConferenceButton.disabled;
             setUpstreamBitrate512Button.disabled = leaveConferenceButton.disabled;
             setUpstreamBitrate1024Button.disabled = leaveConferenceButton.disabled;
+
+            //status
+            if (registered === true){
+                statusClientConnected.className = "statusYes";
+                statusClientConnected.innerHTML = "Client Connected: " + userName;
+            }
+            else
+            {
+                statusClientConnected.className = "statusNo";    
+                statusClientConnected.innerHTML = "Client Connected";
+            }
+
+            statusLocalMediaRunning.className = localMedia !== null ? "statusYes" : "statusNo";
+
+            statusP2pUpstreamConnections.className = "statusNo";
+            statusSfuUpstreamConnections.className = upStreamSfuConnection !== null ? "statusYes" : "statusNo"
+
+
+            statusP2pDownstreamConnections.innerHTML = "P2P Downstream Connections: 0";
+            statusSfuDownstreamConnections.innerHTML = "SFU Downstream Connections: " + (Object.keys(sfuDownstreamConnections).length).toString();
+
         }
 
         function getMediaDevices(){
@@ -687,11 +765,53 @@ TODO: Enable dataChannels
             return fm.liveswitch.Token.generateClientRegisterToken(applicationId, client.getUserId(), client.getDeviceId(), client.getId(), null, claims, sharedSecret);
         };
 
+        register = function(){
+            log("Joining to gateway: " + gatewayUrl + ", channel: " + channelIdText.value.toString());
+            registering = true;
+            registerBtn.innerHTML = "Registering...";
+            enableControls();
+
+            var promise = new fm.liveswitch.Promise();
+
+            unRegistering = false;
+            // Create a client to manage the channel.
+            client = new fm.liveswitch.Client(gatewayUrl, applicationId, userId, deviceId);
+            var claims = [new fm.liveswitch.ChannelClaim(channelIdText.value.toString())];
+            // Use the optional tag field to indicate our mode.
+            client.setTag(mode.toString());
+            client.setUserAlias(userName);
+            var token = generateToken(claims);
+            client.addOnStateChange(function (client) {
+                if (client.getState() == fm.liveswitch.ClientState.Registering) {
+                    log("client is registering");
+                }
+                else if (client.getState() == fm.liveswitch.ClientState.Registered) {
+                    log("client is registered");
+                }
+                else if (client.getState() == fm.liveswitch.ClientState.Unregistering) {
+                    log("client is unregistering");
+                }
+                else if (client.getState() == fm.liveswitch.ClientState.Unregistered) {
+                    log("client is unregistered");
+                }
+            });
+
+            // Register with the server.
+            client.register(token).then(function (channels) {
+                onClientRegistered(channels, incomingChannelMessage);
+                promise.resolve(null);
+            }, function (ex) {
+                promise.reject(ex);
+            });
+
+            return promise;
+        };
+
         joinConference = function (clientRegistered) {
             log("Joining to gateway: " + gatewayUrl + ", channel: " + channelIdText.value.toString());
             joiningConference = true;
-            joinSfuButton.innerHTML = "Joining...";
-            enableControls();
+            //openSfuUpstreamConnectionBtn.innerHTML = "Opening...";
+            //enableControls();
             var promise = new fm.liveswitch.Promise();
             unRegistering = false;
             // Create a client to manage the channel.
@@ -770,19 +890,30 @@ TODO: Enable dataChannels
                 incomingMessage(n, message);
             });
 
-            if (mode == "SFU") {
-                openSfuUpstreamConnection();
+            // // Open a downstream SFU connection for each remote upstream connection.
+            // for (var _i = 0, _a = channel.getRemoteUpstreamConnectionInfos(); _i < _a.length; _i++) {
+            //     var remoteConnectionInfo = _a[_i];
+            //     openSfuDownstreamConnection(remoteConnectionInfo);
+            // }            
 
-                // Open a downstream SFU connection for each remote upstream connection.
-                for (var _i = 0, _a = channel.getRemoteUpstreamConnectionInfos(); _i < _a.length; _i++) {
-                    var remoteConnectionInfo = _a[_i];
-                    openSfuDownstreamConnection(remoteConnectionInfo);
-                }
-            }
+            // if (mode == "SFU") {
+            //     openSfuUpstreamConnection();
+
+            //     // Open a downstream SFU connection for each remote upstream connection.
+            //     for (var _i = 0, _a = channel.getRemoteUpstreamConnectionInfos(); _i < _a.length; _i++) {
+            //         var remoteConnectionInfo = _a[_i];
+            //         openSfuDownstreamConnection(remoteConnectionInfo);
+            //     }
+            // }
         };
 
 
         openSfuUpstreamConnection = function (tag) {
+            if (localMedia === null)
+            {
+                startLocalMediaFmButton.click();
+            }
+
             var connection;
             var dataChannel = null;
             var dataStream = null;
@@ -856,6 +987,27 @@ TODO: Enable dataChannels
             connection.open();
             return connection;
         };
+
+        closeSfuUpstreamConnection = function(){
+            var promise = new fm.liveswitch.Promise();
+
+            if (upStreamSfuConnection !== null){
+                upStreamSfuConnection.close().then(function(result) {
+                    promise.resolve(null);
+                    //console.log("connection closed");
+                }).
+                fail(function(ex) {
+                    promise.reject("Failed to close sfu upstream connection: ", ex);
+                    //console.log("an error occurred");
+                });              
+            }
+            else
+            {
+                promise.resolve(null);
+            }
+
+            return promise;
+        }
 
         openSfuDownstreamConnection = function (remoteConnectionInfo, tag) {
             var remoteMedia = new fm.liveswitch.RemoteMedia();
@@ -1111,26 +1263,52 @@ TODO: Enable dataChannels
             <div id="middle" class="verticalSpacer"></div>
             <div id="right" class="right">
                 <div class="group">
-                    <div style="float: left;"><label for="audioInputs">Audio:</label></div>
-                    <div style="float: left;"><select id="audioInputs" disabled></select></div>                    
-                </div>                
-                <div class="group">
-                        <div style="float: left;"><label for="videoInputs">Video:</label></div>
-                        <div style="float: left;"><select id="videoInputs" disabled></select></div>                    
-                    </div>                
+                    <div class="groupHeader">Audio/Video Inputs</div>
+                    <div class="groupItem"><label for="audioInputs">Audio:</label></div>
+                    <div class="groupItem"><select id="audioInputs" disabled></select></div>                    
+                    <div class="groupItem"><label for="videoInputs">Video:</label></div>
+                    <div class="groupItem"><select id="videoInputs" disabled></select></div>                    
+                </div>
 
-                <button id="startLocalMediaNative" class="buttonMenu" disabled>Start Local Media (Native)</button>
-                <button id="startLocalMediaFm" class="buttonMenu" disabled>Start Local Media (FM)</button>
-                <button id="stopLocalMedia" class="buttonMenu" disabled>Stop Local Media</button>         
-                <button id="joinConference" class="buttonMenu" disabled>Join SFU</button>                
-                <button id="leaveConference" class="buttonMenu" disabled>Leave</button>
+                <div class="group">
+                    <div class="groupHeader">Client</div>
+                    <button id="registerBtn" class="groupItem" disabled>Register</button>
+                    <button id="leaveConference" class="groupItem" disabled>Unregister
+                </div>
+                
+                <div class="group">
+                    <div class="groupHeader">Local Media</div>
+                    <button id="startLocalMediaNative" class="groupItem" disabled>Start (Native)</button>
+                    <button id="startLocalMediaFm" class="groupItem" disabled>Start</button>
+                    <button id="stopLocalMedia" class="groupItem" disabled>Stop</button>                                 
+                </div>
+                
+
+                <div class="group">
+                    <div class="groupHeader">Connections</div>
+                    <button id="openP2PUpstreamConnection" class="groupItem" disabled>Open P2P Upstream</button>                
+                    <button id="openSfuUpstreamConnection" class="groupItem" disabled>Open SFU Upstream</button>                
+                    <button id="closeP2PUpstreamConnection" class="groupItem" disabled>Close P2P Upstream</button>                
+                    <button id="closeSfuUpstreamConnection" class="groupItem" disabled>Close SFU Upstream</button>                
+                </div>
 
                 <div class="horizontalSpacer"></div>
 
                 <div class="group">
-                    <div style="float: left;"><label for="channelId">Channel:</label></div>
-                    <div style="float: left;"><input id="channelId" value="123456" size="4"></div>                    
-                    <div style="float: left;"><button id="resetChannelId" class="buttonMenu">Reset</button></div>                    
+                    <div class="groupHeader">Channel Settings</div>
+                    <div class="groupItem"><label for="channelId">Channel:</label></div>
+                    <div class="groupItem"><input id="channelId" value="123456" size="4"></div>                    
+                    <div class="groupItem"><button id="resetChannelId" class="buttonMenu">Reset</button></div>                    
+                </div>
+
+                <div class="group">
+                    <div class="groupHeader">Status</div>
+                    <button id="statusClientConnected" class="statusNo" disabled>Client Connected</button>                
+                    <button id="statusLocalMediaRunning" class="statusNo" disabled>Local Media Running</button>
+                    <button id="statusP2pUpstreamConnections" class="statusNo" disabled>P2P Upstream</button>                
+                    <button id="statusSfuUpstreamConnections" class="statusNo" disabled>SFU Upstream</button>                    
+                    <label id="statusP2pDownstreamConnections" class="groupItem">P2P Downstream Connections: </label>
+                    <label id="statusSfuDownstreamConnections" class="groupItem">SFU Downstream Connections: </label>
                 </div>
 
                 
