@@ -49,6 +49,7 @@ TODO: Enable dataChannels
         var deviceId = fm.liveswitch.Guid.newGuid().toString().replace(/-/g, '');
         var unRegistering = false;
         var client;
+        var channel = null;
         var sfuDownstreamConnections = {};
         var remoteMedias = {};
 
@@ -56,6 +57,8 @@ TODO: Enable dataChannels
         var startLocalMediaFmButton = document.getElementById("startLocalMediaFm");
         var stopLocalMediaButton = document.getElementById("stopLocalMedia");        
         var registerBtn = document.getElementById("registerBtn");
+        var openP2pUpstreamConnectionBtn = document.getElementById("openP2PUpstreamConnection");
+        var closeP2pUpstreamConnectionBtn = document.getElementById("closeP2PUpstreamConnection");        
         var openSfuUpstreamConnectionBtn = document.getElementById("openSfuUpstreamConnection");
         var closeSfuUpstreamConnectionBtn = document.getElementById("closeSfuUpstreamConnection");
         var muteLocalAudioButton = document.getElementById("muteLocalAudio");
@@ -76,6 +79,7 @@ TODO: Enable dataChannels
         var setUpstreamBitrate512Button = document.getElementById("setUpstreamBitrate512");
         var setUpstreamBitrate1024Button = document.getElementById("setUpstreamBitrate1024");
         var currentUpStreamBitRate = 1024;
+        var upStreamP2pConnection = null;
         var upStreamSfuConnection = null;
         //var downstreamSfuConnection1 = null;
         //var remoteMedia1 = null;
@@ -107,6 +111,7 @@ TODO: Enable dataChannels
         var statusLocalMediaRunning = document.getElementById("statusLocalMediaRunning");
         var statusP2pUpstreamConnections = document.getElementById("statusP2pUpstreamConnections");
         var statusSfuUpstreamConnections = document.getElementById("statusSfuUpstreamConnections");
+        var statusChannelParticipants = document.getElementById("statusChannelParticipants");
         var statusP2pDownstreamConnections = document.getElementById("statusP2pDownstreamConnections");
         var statusSfuDownstreamConnections = document.getElementById("statusSfuDownstreamConnections");
 
@@ -168,6 +173,13 @@ TODO: Enable dataChannels
                 log("Client registered");
                 enableControls();
             });
+        });     
+        
+                
+        fm.liveswitch.Util.observe(openP2pUpstreamConnectionBtn, 'click', function (evt) {
+            evt.preventDefault();
+
+            openP2pUpstreamConnection();
         });        
 
         fm.liveswitch.Util.observe(openSfuUpstreamConnectionBtn, 'click', function (evt) {
@@ -339,6 +351,17 @@ TODO: Enable dataChannels
             // leaveConferenceButton.disabled = !((leavingConference === false) && (joinedConference === true));
 
             if (registered === true){
+                if (upStreamP2pConnection == null)
+                {
+                    openP2pUpstreamConnectionBtn.disabled = false;
+                    closeP2pUpstreamConnectionBtn.disabled = true;
+                }
+                else
+                {
+                    openP2pUpstreamConnectionBtn.disabled = true;
+                    closeP2pUpstreamConnectionBtn.disabled = false;
+                }
+
                 if (upStreamSfuConnection == null)
                 {
                     openSfuUpstreamConnectionBtn.disabled = false;
@@ -352,6 +375,8 @@ TODO: Enable dataChannels
             }
             else
             {
+                openP2pUpstreamConnectionBtn.disabled = true;
+                closeP2pUpstreamConnectionBtn.disabled = true;
                 openSfuUpstreamConnectionBtn.disabled = true;
                 closeSfuUpstreamConnectionBtn.disabled = true;
             }
@@ -360,10 +385,10 @@ TODO: Enable dataChannels
 
             leaveConferenceButton.disabled = !(registered === true);
             
-            //muteLocalAudioButton.disabled = leaveConferenceButton.disabled;
-            //muteLocalVideoButton.disabled = leaveConferenceButton.disabled;
+            muteLocalAudioButton.disabled = localMedia === null;
+            muteLocalVideoButton.disabled =  localMedia === null;
 
-            //upStreamStatsMonitorButton.disabled = leaveConferenceButton.disabled;
+            upStreamStatsMonitorButton.disabled = upStreamSfuConnection === null;
             upStreamStatsMonitorButton.innerHTML = upstreamStatsTimerPaused === true ? "Start Upstream Stats Monitor" : "Stop Upstream Stats Monitor"
 
             var anySfuDownStreamsAvailable = (Object.keys(sfuDownstreamConnections).length > 0);
@@ -397,7 +422,18 @@ TODO: Enable dataChannels
             statusP2pUpstreamConnections.className = "statusNo";
             statusSfuUpstreamConnections.className = upStreamSfuConnection !== null ? "statusYes" : "statusNo"
 
-
+            var channelParticipants = getChannelParticipants();
+            var channelParticipantsUserNameList = "";
+            if (channelParticipants !== null)
+            {
+                for (var i = 0; i < channelParticipants.length; i++){
+                    channelParticipantsUserNameList += channelParticipants[i].getUserAlias() + "\n";
+                }
+                statusChannelParticipants.innerHTML = "Remote Clients In Channel(" + channelParticipants.length + "): " + channelParticipantsUserNameList;
+            }
+            else{
+                statusChannelParticipants.innerHTML = "Remote Clients In Channel(0): ";
+            }
             statusP2pDownstreamConnections.innerHTML = "P2P Downstream Connections: 0";
             statusSfuDownstreamConnections.innerHTML = "SFU Downstream Connections: " + (Object.keys(sfuDownstreamConnections).length).toString();
 
@@ -713,7 +749,7 @@ TODO: Enable dataChannels
 
             var sdpVideoDescription = answer.getSdpMessage().getVideoDescription();
             if (sdpVideoDescription) {
-                for (var oldBandwidth of sdpVideoDescription.getBandwidths()) {
+                for (var oldBandwidth of sdpVideoDescription.getBandwidths()) {message
                     sdpVideoDescription.removeBandwidth(oldBandwidth);
                 }
                 if (bitrate > 0) {
@@ -850,17 +886,25 @@ TODO: Enable dataChannels
         onClientRegistered = function (channels, incomingMessage) {
             channel = channels[0];
 
+            //get the list of P's in this channel
+            var channelParticipants = getChannelParticipants();
+            console.log(channelParticipants);
+
             // Monitor the channel remote client changes.
             channel.addOnRemoteClientJoin(function (remoteClientInfo) {
                 log('Remote client joined the channel (client ID: ' +
                     remoteClientInfo.getId() + ', device ID: ' + remoteClientInfo.getDeviceId() +
                     ', user ID: ' + remoteClientInfo.getUserId() + ', tag: ' + remoteClientInfo.getTag() + ').');
+
+                enableControls();
             });
 
             channel.addOnRemoteClientLeave(function (remoteClientInfo) {
                 log('Remote client left the channel (client ID: ' + remoteClientInfo.getId() +
                     ', device ID: ' + remoteClientInfo.getDeviceId() + ', user ID: ' + remoteClientInfo.getUserId() +
                     ', tag: ' + remoteClientInfo.getTag() + ').');
+
+                enableControls();                    
             });
 
             // Monitor the channel remote upstream connection changes.
@@ -906,6 +950,96 @@ TODO: Enable dataChannels
             //     }
             // }
         };
+
+        getChannelParticipants = function(){
+            if (channel && channel !== null)
+            {
+                return channel.getRemoteClientInfos();
+            }
+
+            return null;
+        }
+        openP2pUpstreamConnection = function(tag){
+            // if (localMedia === null)
+            // {
+            //     startLocalMediaFmButton.click();
+            // }
+
+            // var connection;
+            // var dataChannel = null;
+            // var dataStream = null;
+            // var audioStream;
+            // var videoStream;
+            // if (localMedia.getAudioTrack() != null) {
+            //      audioStream = new fm.liveswitch.AudioStream(localMedia);
+            // }
+            // if (localMedia.getVideoTrack() != null) {
+            //     videoStream = new fm.liveswitch.VideoStream(localMedia);
+            // }
+            // connection = channel.createPeerConnection(audioStream, videoStream);
+            // // Tag the connection (optional).
+            // if (tag == null) {
+            //     tag = 'p2p-upstream';
+            // }
+            // connection.setTag(tag);
+            // // Configure the connection.
+            // connection.setIceServers(iceServers);
+
+            // // Monitor the connection state changes.
+            // connection.addOnStateChange(function (connection) {
+            //     log(connection.getId() + ': P2P upstream connection state is ' +
+            //         new fm.liveswitch.ConnectionStateWrapper(connection.getState()).toString() + '.');
+
+            //     // Cleanup if the connection closes or fails.
+            //     if (connection.getState() == fm.liveswitch.ConnectionState.Closing ||
+            //         connection.getState() == fm.liveswitch.ConnectionState.Failing) {
+            //         if (connection.getRemoteClosed()) {
+            //             log(connection.getId() + ': Media server closed the connection.');
+            //         }
+            //         upStreamP2pConnection = null;
+
+            //         //stop stats timer
+            //         if (upstreamStatsTimer !== null && upstreamStatsTimer > 0){
+            //             clearInterval(upstreamStatsTimer);
+            //             upstreamStatsTimerPaused = true;
+            //         }
+            //     }
+            //     else if (connection.getState() == fm.liveswitch.ConnectionState.Failed) {
+            //         // Note: no need to close the connection as it's done for us.
+            //         openP2pUpstreamConnection(tag);
+            //         //logConnectionState(connection, "P2P Upstream");
+            //     }
+            //     else if (connection.getState() == fm.liveswitch.ConnectionState.Connected) {
+            //         upStreamP2pConnection = connection;
+
+            //         joiningConference = false;
+            //         joinedConference = true;                                    
+            //         enableControls();
+
+            //         //upstream stats
+            //         upstreamStatsTimer = setInterval(function () {
+            //             if (upstreamStatsTimerPaused === false){
+            //                 var connectionStats = connection.getStats().then(function (stats) {
+            //                     var senderAudio = stats.getAudioStream().getSender();
+            //                     var senderVideo = stats.getVideoStream().getSender();
+            //                     if (senderAudio && senderVideo) {
+            //                         var audioBytesSent = senderAudio.getBytesSent().toString();
+            //                         var videoBytesSent = senderVideo.getBytesSent().toString();
+            //                         log("Upstream connection stats SENDER: Audio: " + audioBytesSent + " bytes sent. Video: " + videoBytesSent + " bytes sent");
+            //                     }
+            //                 });
+            //             }
+            //         }, 2000);
+
+            //     }
+            // });
+
+            // // Open the connection.
+            // connection.open();
+            // return connection;
+        }
+
+
 
 
         openSfuUpstreamConnection = function (tag) {
@@ -1164,6 +1298,11 @@ TODO: Enable dataChannels
             var remoteViewVideoContainerId = "remoteVideo-"+connectionId;
             var muteRemoteAudioButtonId = "muteRemoteAudio-"+connectionId;
             var muteRemoteVideoButtonId = "muteRemoteVideo-"+connectionId;
+            var monitorDownstreamStatsId = "monitorDownstreamStats-"+connectionId;
+            var downstreamStatsTimer = null;
+            var downstreamStatsTimerPaused = true;
+            var monitorDownstreamStatsAudioId = "monitorDownstreamStatsAudio-"+connectionId;
+            var monitorDownstreamStatsVideoId = "monitorDownstreamStatsVideo-"+connectionId;
 
 
             remoteView.innerHTML = //"<div class=\"box\">"+
@@ -1171,7 +1310,9 @@ TODO: Enable dataChannels
                     "<div id=\""+remoteViewVideoContainerId+"\" class=\"remoteVideoContainer\"></div>"+
                     "<button id=\""+muteRemoteAudioButtonId+"\" class=\"buttonVideo\">Mute Remote Audio</button>"+
                     "<button id=\""+muteRemoteVideoButtonId+"\" class=\"buttonVideo\">Mute Remote Video</button>"+
-                    "<button id=\"monitorDownstreamStats1\" class=\"buttonVideo\" disabled>Start Downstream Stats Monitor</button>";
+                    "<button id=\""+monitorDownstreamStatsId+"\" class=\"buttonVideo\">Start Downstream Stats Monitor</button>"+
+                    "<label id=\""+ monitorDownstreamStatsAudioId + "\" style=\"display: none\">Audio: </label>"+
+                    "<label id=\""+ monitorDownstreamStatsVideoId + "\" style=\"display: none\">Video: </label>";
                 //"</div>";
                 
             var parent = document.getElementById("left");
@@ -1197,12 +1338,41 @@ TODO: Enable dataChannels
                     remoteConnection.setVideoMuted(currentRemoteVideoMuted);
 
                     this.innerHTML = currentRemoteVideoMuted === false ? "Mute Remote Video" : "Unmute Remote Video";
-
-        //     remoteVideo1Muted = !(remoteVideo1Muted);
-        //     remoteMedia1.setVideoMuted(remoteVideo1Muted);
-        //     muteRemoteVideoButton1.innerHTML = remoteVideo1Muted===false ? "Mute Remote Video" : "Unmute Remote Video";
-
                 });                
+
+                document.getElementById(monitorDownstreamStatsId).addEventListener("click", function(){
+                    //console.log("Clicking mute remote Audio");
+                    downstreamStatsTimerPaused = !downstreamStatsTimerPaused;
+                    this.innerHTML = downstreamStatsTimerPaused === true ? "Start Downstream Stats Monitor" : "Stop Downstream Stats Monitor";                    
+
+                    if(downstreamStatsTimerPaused === true){
+                        document.getElementById(monitorDownstreamStatsAudioId).style.display = 'none';
+                        document.getElementById(monitorDownstreamStatsVideoId).style.display = 'none';
+                    }
+                    else{
+                        document.getElementById(monitorDownstreamStatsAudioId).style.display = 'block';
+                        document.getElementById(monitorDownstreamStatsVideoId).style.display = 'block';
+                    }
+                });   
+
+                downstreamStatsTimer = setInterval(function () {
+                        if (downstreamStatsTimerPaused === false){
+                            var remoteConnection = sfuDownstreamConnections[connectionId];
+                            var connectionStats = remoteConnection.getStats().then(function (stats) {
+                                var receiverAudio = stats.getAudioStream().getReceiver();
+                                var receiverVideo = stats.getVideoStream().getReceiver();
+                                if (receiverAudio && receiverVideo) {
+                                    var audioBytesReceived = receiverAudio.getBytesReceived().toString();
+                                    var videoBytesReceived = receiverVideo.getBytesReceived().toString();
+                                    document.getElementById(monitorDownstreamStatsAudioId).innerHTML = "Audio: " + audioBytesReceived; 
+                                    document.getElementById(monitorDownstreamStatsVideoId).innerHTML = "Video: " + videoBytesReceived; 
+                                    log("Upstream connection stats RECEIVER: Audio: " + audioBytesReceived + " bytes received. Video: " + videoBytesReceived + " bytes received");
+                                }
+                            });
+                        }
+                    }, 2000);                  
+
+                // var             
             }
 
             return remoteViewVideoContainerId;
@@ -1297,7 +1467,7 @@ TODO: Enable dataChannels
                 <div class="group">
                     <div class="groupHeader">Channel Settings</div>
                     <div class="groupItem"><label for="channelId">Channel:</label></div>
-                    <div class="groupItem"><input id="channelId" value="123456" size="4"></div>                    
+                    <div class="groupItem"><input id="channelId" value="bb_test_123456" size="10"></div>                    
                     <div class="groupItem"><button id="resetChannelId" class="buttonMenu">Reset</button></div>                    
                 </div>
 
@@ -1307,6 +1477,7 @@ TODO: Enable dataChannels
                     <button id="statusLocalMediaRunning" class="statusNo" disabled>Local Media Running</button>
                     <button id="statusP2pUpstreamConnections" class="statusNo" disabled>P2P Upstream</button>                
                     <button id="statusSfuUpstreamConnections" class="statusNo" disabled>SFU Upstream</button>                    
+                    <label id="statusChannelParticipants" class="groupItem">Remote Clients In Channel(0): </label>
                     <label id="statusP2pDownstreamConnections" class="groupItem">P2P Downstream Connections: </label>
                     <label id="statusSfuDownstreamConnections" class="groupItem">SFU Downstream Connections: </label>
                 </div>
